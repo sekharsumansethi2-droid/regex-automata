@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Regex → Finite Automaton</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Fraunces:opsz,wght@9..144,300;9..144,600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #161920;
+    --surface2: #1e2230;
+    --surface3: #252a3a;
+    --border: #2e3348;
+    --border2: #3d4460;
+    --accent: #7c6aff;
+    --accent2: #a594ff;
+    --accent-glow: rgba(124,106,255,0.18);
+    --green: #3fcf8e;
+    --green-dim: rgba(63,207,142,0.12);
+    --red: #ff6b6b;
+    --red-dim: rgba(255,107,107,0.12);
+    --amber: #f59e0b;
+    --amber-dim: rgba(245,158,11,0.12);
+    --teal: #22d3ee;
+    --teal-dim: rgba(34,211,238,0.1);
+    --text: #e8eaf2;
+    --text2: #9aa0bc;
+    --text3: #5c6380;
+    --mono: 'JetBrains Mono', monospace;
+    --serif: 'Fraunces', serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.25;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  /* Header */
+  header { margin-bottom: 40px; }
+  .header-top { display: flex; align-items: flex-end; gap: 20px; margin-bottom: 8px; }
+  h1 {
+    font-family: var(--serif);
+    font-size: 42px;
+    font-weight: 300;
+    letter-spacing: -1px;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--accent2) 0%, var(--teal) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .badge {
+    background: var(--accent-glow);
+    border: 1px solid var(--accent);
+    color: var(--accent2);
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .subtitle { color: var(--text3); font-size: 13px; }
+
+  /* Layout */
+  .layout { display: grid; grid-template-columns: 360px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+  /* Panel */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text3);
+  }
+  .panel-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .panel-dot.green { background: var(--green); }
+  .panel-dot.amber { background: var(--amber); }
+  .panel-body { padding: 20px; }
+
+  /* Input section */
+  .input-group { margin-bottom: 16px; }
+  label { font-size: 11px; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; display: block; margin-bottom: 8px; }
+
+  .regex-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .regex-input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .regex-prefix {
+    padding: 0 14px;
+    color: var(--text3);
+    font-size: 18px;
+    font-family: var(--mono);
+    border-right: 1px solid var(--border);
+    height: 48px;
+    display: flex;
+    align-items: center;
+    background: var(--surface3);
+    user-select: none;
+  }
+  #regex-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--accent2);
+    font-family: var(--mono);
+    font-size: 20px;
+    padding: 0 16px;
+    height: 48px;
+    caret-color: var(--accent);
+  }
+
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .ex-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .ex-btn:hover { border-color: var(--accent); color: var(--accent2); background: var(--accent-glow); }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-family: var(--mono);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: none;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    width: 100%;
+    justify-content: center;
+    font-size: 14px;
+    padding: 12px;
+  }
+  .btn-primary:hover { background: var(--accent2); transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-secondary {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .btn-secondary:hover { border-color: var(--teal); color: var(--teal); }
+
+  /* Tabs */
+  .tabs { display: flex; border-bottom: 1px solid var(--border); }
+  .tab {
+    padding: 12px 20px;
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text3);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    font-family: var(--mono);
+  }
+  .tab.active { color: var(--accent2); border-bottom-color: var(--accent); }
+  .tab:hover:not(.active) { color: var(--text2); }
+
+  /* Canvas area */
+  #canvas-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    position: relative;
+  }
+  #canvas-controls {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    gap: 6px;
+    z-index: 10;
+  }
+  .icon-btn {
+    width: 32px; height: 32px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: var(--text2);
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+  .icon-btn:hover { border-color: var(--accent); color: var(--accent2); }
+
+  #automaton-canvas { display: block; width: 100%; }
+
+  /* Info table */
+  .info-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .info-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  .info-table td:first-child { color: var(--text3); width: 40%; }
+  .info-table td:last-child { color: var(--text2); font-family: var(--mono); }
+
+  /* Transition table */
+  .trans-table { width: 100%; border-collapse: collapse; font-size: 12px; overflow: auto; }
+  .trans-table th {
+    background: var(--surface3);
+    padding: 8px 12px;
+    color: var(--text3);
+    font-weight: 400;
+    letter-spacing: 1px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .trans-table td {
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+    white-space: nowrap;
+  }
+  .trans-table tr:hover td { background: var(--surface2); }
+  .state-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+  .state-start { background: var(--teal-dim); color: var(--teal); border: 1px solid var(--teal); }
+  .state-accept { background: var(--green-dim); color: var(--green); border: 1px solid var(--green); }
+
+  /* Simulation */
+  #sim-string {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0 14px;
+    height: 42px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 16px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  #sim-string:focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-dim); }
+  .sim-result {
+    padding: 14px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    margin-top: 12px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+  }
+  .sim-result.accepted { display: flex; background: var(--green-dim); border: 1px solid var(--green); color: var(--green); }
+  .sim-result.rejected { display: flex; background: var(--red-dim); border: 1px solid var(--red); color: var(--red); }
+  .sim-chars { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+  .sim-char {
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 16px;
+    font-family: var(--mono);
+    transition: all 0.3s;
+    background: var(--surface2);
+    color: var(--text2);
+  }
+  .sim-char.active { background: var(--accent-glow); border-color: var(--accent); color: var(--accent2); }
+  .sim-char.accepted { background: var(--green-dim); border-color: var(--green); color: var(--green); }
+  .sim-char.rejected { background: var(--red-dim); border-color: var(--red); color: var(--red); }
+
+  /* Error */
+  .error-msg {
+    background: var(--red-dim);
+    border: 1px solid var(--red);
+    color: var(--red);
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    margin-top: 12px;
+    display: none;
+  }
+  .error-msg.show { display: block; }
+
+  /* Legend */
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: var(--text3); padding: 12px 16px; border-top: 1px solid var(--border); }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* Scrollable */
+  .scrollable { overflow-x: auto; }
+
+  /* Tab content */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Hint */
+  .hint {
+    color: var(--text3);
+    font-size: 11px;
+    line-height: 1.7;
+  }
+  .hint span { color: var(--accent2); }
+
+  .ops-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .op-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .op-sym { font-size: 18px; color: var(--accent2); }
+  .op-name { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+  /* Welcome */
+  #welcome-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 40px;
+    text-align: center;
+    color: var(--text3);
+    min-height: 400px;
+  }
+  .welcome-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+  .welcome-title { font-family: var(--serif); font-size: 20px; font-weight: 300; color: var(--text2); margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="header-top">
+      <h1>RegEx → NFA / DFA</h1>
+      <div class="badge">Thompson's Construction</div>
+    </div>
+    <div class="subtitle">Parse a regular expression · visualise the ε-NFA · simulate input strings</div>
+  </header>
+
+  <div class="layout">
+    <!-- Left panel -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+
+      <!-- Input panel -->
+      <div class="panel">
+        <div class="panel-header"><div class="panel-dot"></div> Regular Expression</div>
+        <div class="panel-body">
+          <div class="input-group">
+            <label>Expression</label>
+            <div class="regex-input-wrap">
+              <div class="regex-prefix">/</div>
+              <input id="regex-input" type="text" placeholder="a(b|c)*" autocomplete="off" spellcheck="false">
+            </div>
+            <div id="error-msg" class="error-msg"></div>
+          </div>
+
+          <div class="input-group">
+            <label>Examples</label>
+            <div class="examples">
+              <button class="ex-btn" onclick="setExample('a(b|c)*')">a(b|c)*</button>
+              <button class="ex-btn" onclick="setExample('(a|b)+c')">( a|b)+c</button>
+              <button class="ex-btn" onclick="setExample('ab*c')">ab*c</button>
+              <button class="ex-btn" onclick="setExample('(0|1)*')">( 0|1)*</button>
+              <button class="ex-btn" onclick="setExample('a?b+')">a?b+</button>
+              <button class="ex-btn" onclick="setExample('(ab)+|(ba)+')">( ab)|(ba)</button>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" onclick="buildAutomaton()">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Build Automaton
+          </button>
+        </div>
+      </div>
+
+      <!-- Syntax guide -->
+      <div class="panel">
+        <div class="panel-header"><div class="panel-dot amber"></div> Syntax Guide</div>
+        <div class="panel-body">
+          <div class="ops-grid">
+            <div class="op-item"><div class="op-sym">|</div><div class="op-name">Union (alternation)</div></div>
+            <div class="op-item"><div class="op-sym">*</div><div class="op-name">Kleene star (0+)</div></div>
+            <div class="op-item"><div class="op-sym">+</div><div class="op-name">One or more (1+)</div></div>
+            <div class="op-item"><div class="op-sym">?</div><div class="op-name">Optional (0 or 1)</div></div>
+            <div class="op-item"><div class="op-sym">( )</div><div class="op-name">Grouping</div></div>
+            <div class="op-item"><div class="op-sym">ε</div><div class="op-name">Empty string</div></div>
+          </div>
+          <div class="hint" style="margin-top:12px">
+            Concatenation is implicit. Use <span>ε</span> for empty string. Supported alphabet: <span>a–z, 0–9</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Simulate -->
+      <div class="panel" id="sim-panel" style="display:none">
+        <div class="panel-header"><div class="panel-dot green"></div> Simulate Input</div>
+        <div class="panel-body">
+          <label>Test String</label>
+          <input id="sim-string" type="text" placeholder="enter a string..." autocomplete="off" spellcheck="false" oninput="simulate()">
+          <div class="sim-chars" id="sim-chars"></div>
+          <div id="sim-result" class="sim-result"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right panel -->
+    <div>
+      <div id="canvas-wrap">
+        <div class="tabs">
+          <button class="tab active" id="tab-enfa" onclick="switchTab('enfa')">ε-NFA</button>
+          <button class="tab" id="tab-dfa" onclick="switchTab('dfa')">DFA</button>
+          <button class="tab" id="tab-table" onclick="switchTab('table')">Transition Table</button>
+          <button class="tab" id="tab-info" onclick="switchTab('info')">Info</button>
+        </div>
+
+        <div id="canvas-controls">
+          <div class="icon-btn" onclick="zoomIn()" title="Zoom in">+</div>
+          <div class="icon-btn" onclick="zoomOut()" title="Zoom out">−</div>
+          <div class="icon-btn" onclick="resetView()" title="Reset view">⟳</div>
+        </div>
+
+        <!-- Tab: ε-NFA -->
+        <div id="content-enfa" class="tab-content active">
+          <div id="welcome-state">
+            <div class="welcome-icon">◎</div>
+            <div class="welcome-title">Enter a regular expression to begin</div>
+            <div class="hint" style="margin-top:8px;max-width:300px;font-size:12px">The automaton will be visualised here using Thompson's construction algorithm</div>
+          </div>
+          <canvas id="nfa-canvas" style="display:none"></canvas>
+          <div class="legend" id="nfa-legend" style="display:none">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div> Start state</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Accept state</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div> Normal state</div>
+            <div class="legend-item"><span style="color:var(--text3);font-size:13px;margin-right:2px">ε</span> Epsilon transition</div>
+          </div>
+        </div>
+
+        <!-- Tab: DFA -->
+        <div id="content-dfa" class="tab-content">
+          <canvas id="dfa-canvas"></canvas>
+          <div class="legend" id="dfa-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div> Start state</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Accept state</div>
+          </div>
+        </div>
+
+        <!-- Tab: Table -->
+        <div id="content-table" class="tab-content">
+          <div class="scrollable" id="table-container" style="padding:20px">
+            <div class="hint" style="padding:40px;text-align:center">Build an automaton first.</div>
+          </div>
+        </div>
+
+        <!-- Tab: Info -->
+        <div id="content-info" class="tab-content">
+          <div style="padding:20px" id="info-container">
+            <div class="hint" style="padding:40px;text-align:center">Build an automaton first.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────
+// REGEX PARSER & THOMPSON'S CONSTRUCTION
+// ─────────────────────────────────────────
+
+let nfaGlobal = null;
+let dfaGlobal = null;
+let currentTab = 'enfa';
+
+// ─── AST Nodes ───
+class ASTChar  { constructor(c) { this.type='char'; this.char=c; } }
+class ASTEps   { constructor()  { this.type='eps'; } }
+class ASTConcat{ constructor(l,r){ this.type='concat'; this.left=l; this.right=r; } }
+class ASTUnion { constructor(l,r){ this.type='union'; this.left=l; this.right=r; } }
+class ASTStar  { constructor(e)  { this.type='star'; this.expr=e; } }
+
+// ─── Parser (recursive descent) ───
+function parse(regex) {
+  let pos = 0;
+  const s = regex;
+
+  function expr() {
+    let node = concat();
+    while (pos < s.length && s[pos] === '|') {
+      pos++;
+      const right = concat();
+      node = new ASTUnion(node, right);
+    }
+    return node;
+  }
+
+  function concat() {
+    let node = repeat();
+    while (pos < s.length && s[pos] !== ')' && s[pos] !== '|') {
+      const right = repeat();
+      node = new ASTConcat(node, right);
+    }
+    return node;
+  }
+
+  function repeat() {
+    let node = atom();
+    while (pos < s.length && (s[pos] === '*' || s[pos] === '+' || s[pos] === '?')) {
+      const op = s[pos++];
+      if (op === '*') node = new ASTStar(node);
+      else if (op === '+') node = new ASTConcat(node, new ASTStar(structuredClone ? JSON.parse(JSON.stringify(node)) : node));
+      else if (op === '?') node = new ASTUnion(node, new ASTEps());
+    }
+    return node;
+  }
+
+  function atom() {
+    if (pos >= s.length) return new ASTEps();
+    if (s[pos] === '(') {
+      pos++;
+      const node = expr();
+      if (pos < s.length && s[pos] === ')') pos++;
+      else throw new Error('Unmatched parenthesis');
+      return node;
+    }
+    if (s[pos] === 'ε' || s[pos] === '') return (pos++, new ASTEps());
+    const c = s[pos++];
+    if (c === '*' || c === '+' || c === '?' || c === ')' || c === '|')
+      throw new Error('Unexpected operator: ' + c);
+    return new ASTChar(c);
+  }
+
+  const result = expr();
+  if (pos < s.length) throw new Error('Unexpected character: ' + s[pos]);
+  return result;
+}
+
+// ─── NFA State ───
+let stateId = 0;
+class NFAState {
+  constructor() {
+    this.id = stateId++;
+    this.transitions = {}; // char -> [state]
+    this.epsilons = [];
+  }
+  addTransition(c, state) {
+    if (!this.transitions[c]) this.transitions[c] = [];
+    this.transitions[c].push(state);
+  }
+  addEpsilon(state) { this.epsilons.push(state); }
+}
+
+// ─── Thompson's Construction ───
+function thompson(ast) {
+  function build(node) {
+    const start = new NFAState();
+    const accept = new NFAState();
+    if (node.type === 'char') {
+      start.addTransition(node.char, accept);
+    } else if (node.type === 'eps') {
+      start.addEpsilon(accept);
+    } else if (node.type === 'concat') {
+      const left  = build(node.left);
+      const right = build(node.right);
+      left.accept.addEpsilon(right.start);
+      return { start: left.start, accept: right.accept };
+    } else if (node.type === 'union') {
+      const left  = build(node.left);
+      const right = build(node.right);
+      start.addEpsilon(left.start);
+      start.addEpsilon(right.start);
+      left.accept.addEpsilon(accept);
+      right.accept.addEpsilon(accept);
+    } else if (node.type === 'star') {
+      const inner = build(node.expr);
+      start.addEpsilon(inner.start);
+      start.addEpsilon(accept);
+      inner.accept.addEpsilon(inner.start);
+      inner.accept.addEpsilon(accept);
+    }
+    return { start, accept };
+  }
+  return build(ast);
+}
+
+// ─── Collect all NFA states ───
+function collectStates(nfa) {
+  const visited = new Set();
+  const queue = [nfa.start];
+  while (queue.length) {
+    const s = queue.shift();
+    if (visited.has(s.id)) continue;
+    visited.add(s.id);
+    s.epsilons.forEach(t => queue.push(t));
+    Object.values(s.transitions).forEach(ts => ts.forEach(t => queue.push(t)));
+  }
+  const stateMap = {};
+  visited.forEach(id => stateMap[id] = id);
+  return visited;
+}
+
+// ─── Epsilon closure ───
+function epsClosure(states) {
+  const closure = new Set(states.map(s => s.id));
+  const queue = [...states];
+  while (queue.length) {
+    const s = queue.shift();
+    s.epsilons.forEach(t => {
+      if (!closure.has(t.id)) { closure.add(t.id); queue.push(t); }
+    });
+  }
+  return closure;
+}
+
+function epsByIds(idSet, stateById) {
+  return epsClosure(Array.from(idSet).map(id => stateById[id]));
+}
+
+// ─── Subset construction (NFA→DFA) ───
+function nfaToDfa(nfa, alphabet) {
+  const stateById = {};
+  const allStates = [];
+  const queue2 = [nfa.start];
+  while (queue2.length) {
+    const s = queue2.shift();
+    if (stateById[s.id]) continue;
+    stateById[s.id] = s;
+    allStates.push(s);
+    s.epsilons.forEach(t => queue2.push(t));
+    Object.values(s.transitions).forEach(ts => ts.forEach(t => queue2.push(t)));
+  }
+
+  const startClosure = epsClosure([nfa.start]);
+  const setKey = set => Array.from(set).sort((a,b)=>a-b).join(',');
+
+  const dfaStates = {};
+  const dfaTransitions = {};
+  const dfaAccept = new Set();
+  const workList = [startClosure];
+  dfaStates[setKey(startClosure)] = setKey(startClosure);
+
+  while (workList.length) {
+    const current = workList.pop();
+    const key = setKey(current);
+    if (!dfaTransitions[key]) dfaTransitions[key] = {};
+
+    if (current.has(nfa.accept.id)) dfaAccept.add(key);
+
+    for (const c of alphabet) {
+      const moved = new Set();
+      current.forEach(id => {
+        const s = stateById[id];
+        if (s && s.transitions[c]) s.transitions[c].forEach(t => moved.add(t.id));
+      });
+      if (moved.size === 0) continue;
+      const nextClosure = epsByIds(moved, stateById);
+      const nextKey = setKey(nextClosure);
+      if (!dfaStates[nextKey]) { dfaStates[nextKey] = nextKey; workList.push(nextClosure); }
+      dfaTransitions[key][c] = nextKey;
+    }
+  }
+
+  return {
+    states: Object.keys(dfaStates),
+    start: setKey(startClosure),
+    accept: dfaAccept,
+    transitions: dfaTransitions,
+    alphabet
+  };
+}
+
+// ─── Build & render ───
+function buildAutomaton() {
+  const raw = document.getElementById('regex-input').value.trim();
+  const errEl = document.getElementById('error-msg');
+  errEl.classList.remove('show');
+
+  if (!raw) {
+    errEl.textContent = 'Please enter a regular expression.';
+    errEl.classList.add('show');
+    return;
+  }
+
+  stateId = 0;
+  let ast, nfa;
+  try {
+    ast = parse(raw);
+    nfa = thompson(ast);
+  } catch(e) {
+    errEl.textContent = 'Parse error: ' + e.message;
+    errEl.classList.add('show');
+    return;
+  }
+
+  // Collect alphabet
+  const alpha = new Set();
+  function collectAlpha(node) {
+    if (!node) return;
+    if (node.type === 'char') alpha.add(node.char);
+    if (node.type === 'concat' || node.type === 'union') { collectAlpha(node.left); collectAlpha(node.right); }
+    if (node.type === 'star') collectAlpha(node.expr);
+  }
+  collectAlpha(ast);
+  const alphabet = Array.from(alpha).sort();
+
+  // Collect NFA states
+  const allNFAStates = [];
+  const visited = new Set();
+  const bfsQ = [nfa.start];
+  while (bfsQ.length) {
+    const s = bfsQ.shift();
+    if (visited.has(s.id)) continue;
+    visited.add(s.id);
+    allNFAStates.push(s);
+    s.epsilons.forEach(t => bfsQ.push(t));
+    Object.values(s.transitions).forEach(ts => ts.forEach(t => bfsQ.push(t)));
+  }
+
+  nfaGlobal = { ...nfa, allStates: allNFAStates, alphabet };
+  dfaGlobal = nfaToDfa(nfa, alphabet);
+
+  // Show sim panel
+  document.getElementById('sim-panel').style.display = '';
+  document.getElementById('sim-result').className = 'sim-result';
+  document.getElementById('sim-chars').innerHTML = '';
+
+  renderNFA();
+  renderDFA();
+  renderTable();
+  renderInfo(raw, alphabet);
+
+  // Show canvas
+  document.getElementById('welcome-state').style.display = 'none';
+  document.getElementById('nfa-canvas').style.display = 'block';
+  document.getElementById('nfa-legend').style.display = 'flex';
+}
+
+// ─────────────────────────────────────────
+// LAYOUT ENGINE (Layered graph layout)
+// ─────────────────────────────────────────
+
+function layoutNFA(states, startId, acceptId) {
+  // BFS layers
+  const layers = {};
+  const visited = new Set();
+  const queue = [{ id: startId, layer: 0 }];
+  const stateMap = {};
+  states.forEach(s => stateMap[s.id] = s);
+
+  while (queue.length) {
+    const { id, layer } = queue.shift();
+    if (visited.has(id)) continue;
+    visited.add(id);
+    if (!layers[layer]) layers[layer] = [];
+    layers[layer].push(id);
+    const s = stateMap[id];
+    if (!s) continue;
+    s.epsilons.forEach(t => queue.push({ id: t.id, layer: layer + 1 }));
+    Object.values(s.transitions).forEach(ts => ts.forEach(t => queue.push({ id: t.id, layer: layer + 1 })));
+  }
+
+  // Add any unvisited states
+  states.forEach(s => {
+    if (!visited.has(s.id)) {
+      const maxLayer = Math.max(...Object.keys(layers).map(Number));
+      if (!layers[maxLayer + 1]) layers[maxLayer + 1] = [];
+      layers[maxLayer + 1].push(s.id);
+    }
+  });
+
+  const NODE_W = 64, NODE_SPACING_X = 130, NODE_SPACING_Y = 110;
+  const positions = {};
+  const layerKeys = Object.keys(layers).map(Number).sort((a,b)=>a-b);
+  const totalLayers = layerKeys.length;
+
+  layerKeys.forEach((layer, li) => {
+    const nodes = layers[layer];
+    nodes.forEach((id, ni) => {
+      positions[id] = {
+        x: 80 + li * NODE_SPACING_X,
+        y: 80 + ni * NODE_SPACING_Y - (nodes.length - 1) * NODE_SPACING_Y / 2
+      };
+    });
+  });
+
+  return positions;
+}
+
+function layoutDFA(states, startKey) {
+  // BFS layers for DFA (states are string keys)
+  const layers = {};
+  const visited = new Set();
+  const queue = [{ id: startKey, layer: 0 }];
+
+  while (queue.length) {
+    const { id, layer } = queue.shift();
+    if (visited.has(id)) continue;
+    visited.add(id);
+    if (!layers[layer]) layers[layer] = [];
+    layers[layer].push(id);
+    if (dfaGlobal.transitions[id]) {
+      Object.values(dfaGlobal.transitions[id]).forEach(t => queue.push({ id: t, layer: layer + 1 }));
+    }
+  }
+
+  states.forEach(s => {
+    if (!visited.has(s)) {
+      if (!layers[0]) layers[0] = [];
+      layers[0].push(s);
+    }
+  });
+
+  const NODE_SPACING_X = 150, NODE_SPACING_Y = 110;
+  const positions = {};
+  const layerKeys = Object.keys(layers).map(Number).sort((a,b)=>a-b);
+
+  layerKeys.forEach((layer) => {
+    const nodes = layers[layer];
+    nodes.forEach((id, ni) => {
+      positions[id] = {
+        x: 80 + layer * NODE_SPACING_X,
+        y: 80 + ni * NODE_SPACING_Y - (nodes.length - 1) * NODE_SPACING_Y / 2
+      };
+    });
+  });
+
+  return positions;
+}
+
+// ─────────────────────────────────────────
+// CANVAS RENDERER
+// ─────────────────────────────────────────
+
+const COLORS = {
+  bg: '#161920', bgNode: '#1e2230', border: '#2e3348',
+  accent: '#7c6aff', accent2: '#a594ff', accentGlow: 'rgba(124,106,255,0.15)',
+  teal: '#22d3ee', tealDim: 'rgba(34,211,238,0.12)',
+  green: '#3fcf8e', greenDim: 'rgba(63,207,142,0.12)',
+  text: '#e8eaf2', text2: '#9aa0bc', text3: '#5c6380',
+  eps: '#5c6380', edge: '#3d4460'
+};
+
+let nfaViewState  = { scale: 1, offX: 0, offY: 0, dragging: false, startX: 0, startY: 0, startOffX: 0, startOffY: 0 };
+let dfaViewState  = { scale: 1, offX: 0, offY: 0, dragging: false, startX: 0, startY: 0, startOffX: 0, startOffY: 0 };
+
+function setupDrag(canvas, vs) {
+  canvas.onmousedown = e => {
+    vs.dragging = true; vs.startX = e.clientX; vs.startY = e.clientY;
+    vs.startOffX = vs.offX; vs.startOffY = vs.offY;
+    canvas.style.cursor = 'grabbing';
+  };
+  canvas.onmousemove = e => {
+    if (!vs.dragging) return;
+    vs.offX = vs.startOffX + (e.clientX - vs.startX);
+    vs.offY = vs.startOffY + (e.clientY - vs.startY);
+    if (currentTab === 'enfa') drawNFACanvas();
+    else if (currentTab === 'dfa') drawDFACanvas();
+  };
+  canvas.onmouseup = () => { vs.dragging = false; canvas.style.cursor = 'grab'; };
+  canvas.onmouseleave = () => { vs.dragging = false; canvas.style.cursor = 'grab'; };
+  canvas.onwheel = e => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    vs.scale = Math.max(0.3, Math.min(3, vs.scale * factor));
+    if (currentTab === 'enfa') drawNFACanvas();
+    else if (currentTab === 'dfa') drawDFACanvas();
+  };
+  canvas.style.cursor = 'grab';
+}
+
+function drawNode(ctx, x, y, label, type) {
+  const R = 26;
+  ctx.save();
+
+  // Shadow glow for special states
+  if (type === 'start') {
+    ctx.shadowColor = COLORS.teal; ctx.shadowBlur = 12;
+  } else if (type === 'accept') {
+    ctx.shadowColor = COLORS.green; ctx.shadowBlur = 12;
+  }
+
+  // Outer circle
+  ctx.beginPath();
+  ctx.arc(x, y, R, 0, Math.PI * 2);
+  ctx.fillStyle = type === 'start' ? COLORS.tealDim : type === 'accept' ? COLORS.greenDim : COLORS.bgNode;
+  ctx.fill();
+  ctx.strokeStyle = type === 'start' ? COLORS.teal : type === 'accept' ? COLORS.green : COLORS.accent;
+  ctx.lineWidth = type === 'start' || type === 'accept' ? 2 : 1.5;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Double circle for accept state
+  if (type === 'accept') {
+    ctx.beginPath();
+    ctx.arc(x, y, R - 5, 0, Math.PI * 2);
+    ctx.strokeStyle = COLORS.green;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // Label
+  ctx.fillStyle = type === 'start' ? COLORS.teal : type === 'accept' ? COLORS.green : COLORS.accent2;
+  ctx.font = '500 13px JetBrains Mono, monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('q' + label, x, y);
+  ctx.restore();
+}
+
+function drawArrow(ctx, x1, y1, x2, y2, label, color, curved) {
+  color = color || COLORS.edge;
+  const R = 26;
+  const dx = x2 - x1, dy = y2 - y1;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const ux = dx/dist, uy = dy/dist;
+
+  const sx = x1 + ux * R, sy = y1 + uy * R;
+  const ex = x2 - ux * R, ey = y2 - uy * R;
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1.2;
+
+  if (curved) {
+    // Curved arc for self-loops or back-edges
+    const mx = (sx + ex) / 2 - dy * 0.4;
+    const my = (sy + ey) / 2 + dx * 0.4;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.quadraticCurveTo(mx, my, ex, ey);
+    ctx.stroke();
+    // Arrow head at end
+    const angle = Math.atan2(ey - my, ex - mx);
+    drawArrowHead(ctx, ex, ey, angle, color);
+    // Label
+    if (label) {
+      ctx.fillStyle = COLORS.text2;
+      ctx.font = '400 12px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, (sx+ex)/2 - dy*0.35, (sy+ey)/2 + dx*0.35);
+    }
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+    const angle = Math.atan2(ey - sy, ex - sx);
+    drawArrowHead(ctx, ex, ey, angle, color);
+    if (label) {
+      ctx.fillStyle = label === 'ε' ? COLORS.eps : COLORS.text2;
+      ctx.font = label === 'ε' ? 'italic 14px Georgia, serif' : '400 12px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const lx = (sx + ex) / 2 - uy * 12;
+      const ly = (sy + ey) / 2 + ux * 12;
+      ctx.fillText(label, lx, ly);
+    }
+  }
+  ctx.restore();
+}
+
+function drawSelfLoop(ctx, x, y, label, color) {
+  color = color || COLORS.edge;
+  const R = 26, loopR = 18;
+  const cx = x, cy = y - R - loopR;
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.arc(cx, cy, loopR, 0, Math.PI * 1.85);
+  ctx.stroke();
+
+  // Arrow head
+  const angle = Math.PI * 0.05 + Math.PI * 0.5;
+  drawArrowHead(ctx, cx + Math.cos(Math.PI * 1.85) * loopR, cy + Math.sin(Math.PI * 1.85) * loopR, angle, color);
+
+  if (label) {
+    ctx.fillStyle = label === 'ε' ? COLORS.eps : COLORS.text2;
+    ctx.font = label === 'ε' ? 'italic 14px Georgia, serif' : '400 12px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, cx, cy - loopR - 8);
+  }
+  ctx.restore();
+}
+
+function drawArrowHead(ctx, x, y, angle, color) {
+  const size = 8;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-size, -size/2);
+  ctx.lineTo(-size, size/2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawInitArrow(ctx, x, y) {
+  const R = 26;
+  ctx.save();
+  ctx.strokeStyle = COLORS.teal;
+  ctx.fillStyle = COLORS.teal;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x - R - 35, y);
+  ctx.lineTo(x - R - 2, y);
+  ctx.stroke();
+  drawArrowHead(ctx, x - R - 2, y, 0, COLORS.teal);
+  ctx.restore();
+}
+
+let nfaPositions = null;
+
+function renderNFA() {
+  const nfa = nfaGlobal;
+  nfaPositions = layoutNFA(nfa.allStates, nfa.start.id, nfa.accept.id);
+  drawNFACanvas();
+}
+
+function drawNFACanvas() {
+  const nfa = nfaGlobal;
+  if (!nfa) return;
+  const canvas = document.getElementById('nfa-canvas');
+  const wrap = canvas.parentElement;
+  const W = wrap.clientWidth || 700;
+  const H = 480;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = COLORS.bg;
+  ctx.fillRect(0, 0, W, H);
+
+  const vs = nfaViewState;
+  ctx.save();
+  ctx.translate(vs.offX + W * 0.02, vs.offY + H * 0.5);
+  ctx.scale(vs.scale, vs.scale);
+
+  const pos = nfaPositions;
+
+  // Draw edges first
+  nfa.allStates.forEach(s => {
+    // Epsilon transitions
+    s.epsilons.forEach(t => {
+      if (s.id === t.id) { drawSelfLoop(ctx, pos[s.id].x, pos[s.id].y, 'ε', COLORS.eps); return; }
+      const curved = pos[t.id].y !== pos[s.id].y && Math.abs(pos[t.id].x - pos[s.id].x) < 10;
+      drawArrow(ctx, pos[s.id].x, pos[s.id].y, pos[t.id].x, pos[t.id].y, 'ε', COLORS.eps, curved);
+    });
+    // Symbol transitions
+    Object.entries(s.transitions).forEach(([c, targets]) => {
+      targets.forEach(t => {
+        if (s.id === t.id) { drawSelfLoop(ctx, pos[s.id].x, pos[s.id].y, c, COLORS.accent); return; }
+        const curved = pos[t.id].y !== pos[s.id].y && Math.abs(pos[t.id].x - pos[s.id].x) < 10;
+        drawArrow(ctx, pos[s.id].x, pos[s.id].y, pos[t.id].x, pos[t.id].y, c, COLORS.accent, curved);
+      });
+    });
+  });
+
+  // Draw init arrow
+  drawInitArrow(ctx, pos[nfa.start.id].x, pos[nfa.start.id].y);
+
+  // Draw nodes
+  nfa.allStates.forEach(s => {
+    const type = s.id === nfa.start.id ? 'start' : s.id === nfa.accept.id ? 'accept' : 'normal';
+    drawNode(ctx, pos[s.id].x, pos[s.id].y, s.id, type);
+  });
+
+  ctx.restore();
+}
+
+let dfaPositions = null;
+
+function renderDFA() {
+  const dfa = dfaGlobal;
+  dfaPositions = layoutDFA(dfa.states, dfa.start);
+  drawDFACanvas();
+}
+
+function drawDFACanvas() {
+  const dfa = dfaGlobal;
+  if (!dfa) return;
+  const canvas = document.getElementById('dfa-canvas');
+  const wrap = canvas.parentElement;
+  const W = wrap.clientWidth || 700;
+  const H = 480;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = COLORS.bg;
+  ctx.fillRect(0, 0, W, H);
+
+  const vs = dfaViewState;
+  ctx.save();
+  ctx.translate(vs.offX + W * 0.02, vs.offY + H * 0.5);
+  ctx.scale(vs.scale, vs.scale);
+
+  const pos = dfaPositions;
+  const stateLabels = {};
+  dfa.states.forEach((s, i) => { stateLabels[s] = i; });
+
+  // Edges
+  dfa.states.forEach(s => {
+    if (!dfa.transitions[s]) return;
+    Object.entries(dfa.transitions[s]).forEach(([c, t]) => {
+      if (s === t) { drawSelfLoop(ctx, pos[s].x, pos[s].y, c, COLORS.accent); return; }
+      const curved = pos[t].y !== pos[s].y && Math.abs(pos[t].x - pos[s].x) < 10;
+      drawArrow(ctx, pos[s].x, pos[s].y, pos[t].x, pos[t].y, c, COLORS.accent, curved);
+    });
+  });
+
+  drawInitArrow(ctx, pos[dfa.start].x, pos[dfa.start].y);
+
+  // Nodes
+  dfa.states.forEach(s => {
+    const type = s === dfa.start ? 'start' : dfa.accept.has(s) ? 'accept' : 'normal';
+    drawNode(ctx, pos[s].x, pos[s].y, stateLabels[s], type);
+  });
+
+  ctx.restore();
+}
+
+function renderTable() {
+  const dfa = dfaGlobal;
+  if (!dfa) return;
+  const stateLabels = {};
+  dfa.states.forEach((s, i) => { stateLabels[s] = i; });
+
+  let html = `<table class="trans-table"><thead><tr>
+    <th>State</th><th>Type</th>`;
+  dfa.alphabet.forEach(c => { html += `<th>${c}</th>`; });
+  html += `</tr></thead><tbody>`;
+
+  dfa.states.forEach(s => {
+    const isStart = s === dfa.start;
+    const isAccept = dfa.accept.has(s);
+    const type = isStart && isAccept ? 'both' : isStart ? 'start' : isAccept ? 'accept' : '';
+    html += `<tr><td>q${stateLabels[s]}</td><td>`;
+    if (isStart) html += `<span class="state-badge state-start">→ start</span> `;
+    if (isAccept) html += `<span class="state-badge state-accept">✓ accept</span>`;
+    html += `</td>`;
+    dfa.alphabet.forEach(c => {
+      const t = dfa.transitions[s] && dfa.transitions[s][c];
+      html += `<td>${t !== undefined ? 'q' + stateLabels[t] : '—'}</td>`;
+    });
+    html += `</tr>`;
+  });
+  html += `</tbody></table>`;
+  document.getElementById('table-container').innerHTML = html;
+}
+
+function renderInfo(regex, alphabet) {
+  const nfa = nfaGlobal, dfa = dfaGlobal;
+  const html = `
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:12px">Expression</div>
+      <table class="info-table">
+        <tr><td>Input regex</td><td>${regex}</td></tr>
+        <tr><td>Alphabet Σ</td><td>{ ${alphabet.join(', ')} }</td></tr>
+      </table>
+    </div>
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:12px">ε-NFA</div>
+      <table class="info-table">
+        <tr><td>States |Q|</td><td>${nfa.allStates.length}</td></tr>
+        <tr><td>Start state</td><td>q${nfa.start.id}</td></tr>
+        <tr><td>Accept state</td><td>q${nfa.accept.id}</td></tr>
+        <tr><td>Construction</td><td>Thompson's construction</td></tr>
+      </table>
+    </div>
+    <div>
+      <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:12px">DFA (Subset Construction)</div>
+      <table class="info-table">
+        <tr><td>States |Q|</td><td>${dfa.states.length}</td></tr>
+        <tr><td>Accept states</td><td>${dfa.accept.size}</td></tr>
+        <tr><td>Method</td><td>Subset (powerset) construction</td></tr>
+      </table>
+    </div>
+  `;
+  document.getElementById('info-container').innerHTML = html;
+}
+
+// ─────────────────────────────────────────
+// SIMULATION
+// ─────────────────────────────────────────
+
+function simulate() {
+  const dfa = dfaGlobal;
+  if (!dfa) return;
+  const input = document.getElementById('sim-string').value;
+  const charsEl = document.getElementById('sim-chars');
+  const resultEl = document.getElementById('sim-result');
+
+  charsEl.innerHTML = '';
+  if (!input) { resultEl.className = 'sim-result'; return; }
+
+  const chars = input.split('');
+  chars.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'sim-char';
+    el.textContent = c;
+    charsEl.appendChild(el);
+  });
+
+  let current = dfa.start;
+  let accepted = true;
+  let stepIdx = 0;
+
+  function step() {
+    if (stepIdx >= chars.length) {
+      const finalAccepted = dfa.accept.has(current);
+      resultEl.className = 'sim-result ' + (finalAccepted ? 'accepted' : 'rejected');
+      resultEl.innerHTML = finalAccepted
+        ? `<span style="font-size:18px">✓</span> <span>String <strong>"${input}"</strong> is <strong>ACCEPTED</strong></span>`
+        : `<span style="font-size:18px">✗</span> <span>String <strong>"${input}"</strong> is <strong>REJECTED</strong></span>`;
+      // Mark all chars
+      const charEls = charsEl.querySelectorAll('.sim-char');
+      charEls.forEach(el => el.className = 'sim-char ' + (finalAccepted ? 'accepted' : 'rejected'));
+      return;
+    }
+    const c = chars[stepIdx];
+    const charEl = charsEl.querySelectorAll('.sim-char')[stepIdx];
+    charEl.classList.add('active');
+
+    if (!dfa.transitions[current] || !dfa.transitions[current][c]) {
+      accepted = false;
+      resultEl.className = 'sim-result rejected';
+      resultEl.innerHTML = `<span style="font-size:18px">✗</span> <span>Stuck at step ${stepIdx+1}: no transition on '<strong>${c}</strong>'</span>`;
+      return;
+    }
+    current = dfa.transitions[current][c];
+    stepIdx++;
+    setTimeout(step, 120);
+  }
+
+  setTimeout(step, 0);
+}
+
+// ─────────────────────────────────────────
+// UI CONTROLS
+// ─────────────────────────────────────────
+
+function switchTab(name) {
+  currentTab = name;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('content-' + name).classList.add('active');
+  if (name === 'enfa' && nfaGlobal) drawNFACanvas();
+  if (name === 'dfa' && dfaGlobal) drawDFACanvas();
+}
+
+function zoomIn() {
+  const vs = currentTab === 'enfa' ? nfaViewState : dfaViewState;
+  vs.scale = Math.min(3, vs.scale * 1.2);
+  if (currentTab === 'enfa') drawNFACanvas(); else drawDFACanvas();
+}
+function zoomOut() {
+  const vs = currentTab === 'enfa' ? nfaViewState : dfaViewState;
+  vs.scale = Math.max(0.3, vs.scale * 0.8);
+  if (currentTab === 'enfa') drawNFACanvas(); else drawDFACanvas();
+}
+function resetView() {
+  const vs = currentTab === 'enfa' ? nfaViewState : dfaViewState;
+  vs.scale = 1; vs.offX = 0; vs.offY = 0;
+  if (currentTab === 'enfa') drawNFACanvas(); else drawDFACanvas();
+}
+
+function setExample(ex) {
+  document.getElementById('regex-input').value = ex;
+  buildAutomaton();
+}
+
+// Init drag on both canvases
+window.addEventListener('load', () => {
+  setupDrag(document.getElementById('nfa-canvas'), nfaViewState);
+  setupDrag(document.getElementById('dfa-canvas'), dfaViewState);
+});
+
+// Enter key
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('regex-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') buildAutomaton();
+  });
+  setupDrag(document.getElementById('nfa-canvas'), nfaViewState);
+  setupDrag(document.getElementById('dfa-canvas'), dfaViewState);
+  setExample('a(b|c)*');
+});
+</script>
+</body>
+</html>
