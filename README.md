@@ -40,7 +40,7 @@ A browser-based tool that converts a regular expression into an **ε-NFA** and *
    start index.html       # Windows
    xdg-open index.html    # Linux
    ```
-3. open the link
+3. Copy the click and open on a browser 
    ```bash
       https://sekharsumansethi2-droid.github.io/regex-automata/
    ```
